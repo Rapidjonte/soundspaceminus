@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "k43lCl/Da5icEs6qUYYBN8QwZ4OVwgRrpgjI4mbIO5ud3hrzja2++L3bJiHBuTnfrNYfGuehR1/QrCQ53hylxA==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Rapid\\source\\repos\\soundspaceminus\\soundspaceminus.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Rapid\\.nuget\\packages\\raylib-cs\\6.1.1\\raylib-cs.6.1.1.nupkg.sha512",
+    "C:\\Users\\Rapid\\.nuget\\packages\\system.numerics.vectors\\4.5.0\\system.numerics.vectors.4.5.0.nupkg.sha512"
+  ],
+  "logs": []
+}
