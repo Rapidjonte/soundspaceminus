@@ -5,46 +5,50 @@ using System.Diagnostics;
 using System.Globalization;
 using System;
 using System.IO;
+using System.Formats.Tar;
+using Rhythia.Content.Beatmaps;
 
-internal class Program
+internal partial class Program
 {
-    static int screenWidth = 1920;
-    static int screenHeight = 1080;
-    static int FPS = 60;
+    static int screenWidth = 2560;
+    static int screenHeight = 1440;
+    static int FPS = 165;
 
     static float noteRoundness = 0.5f;
     static int segments = 10;
     static float noteThickness = 35;
-    static float noteOffset = 999;
+    public static float noteOffset = 999;
 
     static float ar = 25;
     static float sd = 15;
     static float hitWindow = 0.3f;
     static bool doNotePushback = false;
 
+    public static Color[] colorList = { Color.Pink, Color.SkyBlue };
+
     static bool dead = false;
 
-    static float songOffset = 888;
-    static string songPath = Path.Combine("Resources", "song.mp3");
+    static float songOffset = 799;
     static string hitPath = Path.Combine("Resources", "hit.wav");
     static string missPath = Path.Combine("Resources", "miss.wav");
-    static string mapPath = Path.Combine("Resources", "map.txt");
+    static string sspmPath = Path.Combine("Resources", "map.sspm");
 
     static void Main(string[] args)
     {
         Raylib.InitWindow(screenWidth, screenHeight, "Sound Space Minus");
         Raylib.SetTargetFPS(FPS);
         Raylib.InitAudioDevice();
+        Raylib.SetWindowIcon(Raylib.LoadImage(Path.Combine("Resources", "icon.png")));
+        Raylib.ToggleBorderlessWindowed();
 
-        LoadMapAndPlay();
+        LoadMapAndPlay("sspm");
 
         Raylib.CloseAudioDevice();
         Raylib.CloseWindow();
     }
 
-    static void LoadMapAndPlay()
+    static void LoadMapAndPlay(string mapFileType)
     {
-        Sound song = Raylib.LoadSound(songPath);
         Sound hit = Raylib.LoadSound(hitPath);
         Sound miss = Raylib.LoadSound(missPath);
 
@@ -58,48 +62,39 @@ internal class Program
         ar /= 1000;
         sd *= 35;
 
-        string mapData = File.ReadAllText(mapPath);
-        string songName = mapData.Split(',')[0];
-        string[] splitData = mapData.Replace(songName + ",", "").Split(',', '|');
-        int dataType = 0;
-        float x = 0;
-        float y = 0;
-        float ms = 0;
-        Color[] colorList = { Color.Purple, Color.Blue };
-        int colorIndex = 0;
-
-        foreach (string data in splitData)
+        string mapPath = Path.Combine("Resources", "map.txt");
+        string songPath = Path.Combine("Resources", "song.mp3");
+        string sspmPath;
+        Sound song = Raylib.LoadSound(songPath);
+        IBeatmapSet map;
+        if (mapFileType == "txt")
         {
-            if (dataType == 0)
-            {
-                x = float.Parse(data, CultureInfo.InvariantCulture);
-                dataType++;
-            }
-            else if (dataType == 1)
-            {
-                y = float.Parse(data, CultureInfo.InvariantCulture);
-                dataType++;
-            }
-            else if (dataType == 2)
-            {
-                ms = float.Parse(data, CultureInfo.InvariantCulture) + noteOffset;
-                dataType = 0;
-                unspawnedNotes.Add(new Note { X = x, Y = y, Ms = ms, Color = colorList[colorIndex] });
-                colorIndex = (colorIndex == colorList.Length - 1) ? 0 : colorIndex + 1;
-            }
+            mapPath = Path.Combine("Resources", "map.txt"); // you should get to pick
+            songPath = Path.Combine("Resources", "song.mp3"); // you should get to pick
+            song = Raylib.LoadSound(songPath);
+            unspawnedNotes = MapReader.txt(mapPath);
+        } else if (mapFileType == "sspm")
+        {
+            sspmPath = @"C:\Users\Rapid\Downloads\map.sspm";
+            map = new SSPMap(sspmPath);
+            unspawnedNotes = MapReader.sspm(sspmPath);
+            byte[] audioData = new SSPMap(sspmPath).AudioData;
+            song = Raylib.LoadSoundFromWave(Raylib.LoadWaveFromMemory(MapReader.GetFileFormat(audioData), audioData));
+            songOffset += 122;
         }
-        Console.WriteLine("map loaded!");
 
         timer.Start();
+
         while (!Raylib.WindowShouldClose())
         {
             if (playSong && timer.Elapsed.TotalMilliseconds > songOffset)
             {
+                Console.WriteLine("played song");
                 Raylib.PlaySound(song);
                 playSong = false;
             }
 
-            while (unspawnedNotes.Count > 0 && unspawnedNotes[0].Ms < timer.Elapsed.TotalMilliseconds + sd)
+            while (unspawnedNotes.Count > 0 && unspawnedNotes[0].Time < timer.Elapsed.TotalMilliseconds + sd)
             {
                 renderedNotes.Add(unspawnedNotes[0]);
                 unspawnedNotes.RemoveAt(0);
@@ -109,23 +104,25 @@ internal class Program
             Raylib.ClearBackground(Color.Black);
             Raylib.DrawRectangleLinesEx(new Rectangle(screenWidth / 2 - grid_size / 2, screenHeight / 2 - grid_size / 2, grid_size, grid_size), 2, Color.White);
             Raylib.DrawText("FPS: " + Raylib.GetFPS(), 0, 0, 100, Color.White);
+            if (renderedNotes.Count > 0)
+                Raylib.DrawText(renderedNotes[0].X.ToString(), 0, 100, 50, Color.White);
 
             for (int i = renderedNotes.Count - 1; i > -1; i--)
             {
-                renderedNotes[i].Z = (renderedNotes[i].Ms - (float)timer.Elapsed.TotalMilliseconds) * ar;
-                if (renderedNotes[i].Z <= 1f - hitWindow)
+                float noteZ = (renderedNotes[i].Time - (float)timer.Elapsed.TotalMilliseconds) * ar;
+                if (noteZ <= 1f - hitWindow)
                 {
-                    Raylib.PlaySound(hit);
+                    Raylib.PlaySound(miss);
                     renderedNotes.RemoveAt(i);
                     i--;
                     continue;
                 }
 
-                float scale = grid_size / 3.0f / renderedNotes[i].Z;
-                float thickness = noteThickness / renderedNotes[i].Z;
+                float scale = grid_size / 3.0f / noteZ;
+                float thickness = noteThickness / noteZ;
                 float adjustedSize = scale - 2 * thickness;
 
-                if (renderedNotes[i].Z > 1f || doNotePushback)
+                if (noteZ > 1f || doNotePushback)
                 {
                     Raylib.DrawRectangleRoundedLines(
                         new Rectangle(
@@ -148,14 +145,5 @@ internal class Program
         Raylib.UnloadSound(song);
         Raylib.UnloadSound(hit);
         Raylib.UnloadSound(miss);
-    }
-
-    class Note
-    {
-        public float X;
-        public float Y;
-        public float Z;
-        public float Ms;
-        public Color Color;
     }
 }

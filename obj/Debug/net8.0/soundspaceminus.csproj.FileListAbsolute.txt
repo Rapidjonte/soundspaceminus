@@ -14,9 +14,9 @@ C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspaceminus.Gen
 C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspaceminus.AssemblyInfoInputs.cache
 C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspaceminus.AssemblyInfo.cs
 C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspaceminus.csproj.CoreCompileInputs.cache
-C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspaceminus.csproj.CopyComplete
 C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspaceminus.dll
 C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\refint\soundspaceminus.dll
 C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspaceminus.pdb
 C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspaceminus.genruntimeconfig.cache
 C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\ref\soundspaceminus.dll
+C:\Users\Rapid\source\repos\soundspaceminus\obj\Debug\net8.0\soundspa.66AA5981.Up2Date
