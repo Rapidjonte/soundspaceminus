@@ -1,11 +1,14 @@
 {
   "version": 2,
-  "dgSpecHash": "ai3xzPShVD0=",
+  "dgSpecHash": "U089yDC3Jjw=",
   "success": true,
   "projectFilePath": "C:\\Users\\Rapid\\source\\repos\\soundspaceminus\\soundspaceminus.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\Rapid\\.nuget\\packages\\imgui.net\\1.90.9.1\\imgui.net.1.90.9.1.nupkg.sha512",
     "C:\\Users\\Rapid\\.nuget\\packages\\raylib-cs\\6.1.1\\raylib-cs.6.1.1.nupkg.sha512",
-    "C:\\Users\\Rapid\\.nuget\\packages\\system.numerics.vectors\\4.5.0\\system.numerics.vectors.4.5.0.nupkg.sha512"
+    "C:\\Users\\Rapid\\.nuget\\packages\\system.buffers\\4.4.0\\system.buffers.4.4.0.nupkg.sha512",
+    "C:\\Users\\Rapid\\.nuget\\packages\\system.numerics.vectors\\4.5.0\\system.numerics.vectors.4.5.0.nupkg.sha512",
+    "C:\\Users\\Rapid\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\4.4.0\\system.runtime.compilerservices.unsafe.4.4.0.nupkg.sha512"
   ],
   "logs": []
 }

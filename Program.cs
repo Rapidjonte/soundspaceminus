@@ -7,6 +7,10 @@ using System;
 using System.IO;
 using System.Formats.Tar;
 using Rhythia.Content.Beatmaps;
+using System.ComponentModel.Design;
+using soundspaceminus;
+using static System.Net.Mime.MediaTypeNames;
+using System.Text;
 
 internal partial class Program
 {
@@ -14,24 +18,31 @@ internal partial class Program
     static int screenHeight = 1440;
     static int FPS = 165;
 
-    static float noteRoundness = 0.5f;
-    static int segments = 10;
-    static float noteThickness = 35;
+    static float sens = 1;
+    static float cursorSize = 0.2f;
+
+    static int fontSize = 50;
+
+    static float noteRoundness = 0.3f;
+    static int segments = 1;
+    static float noteThickness = 40;
     public static float noteOffset = 999;
 
-    static float ar = 25;
-    static float sd = 15;
-    static float hitWindow = 0.3f;
+    public static float ar = 15;   
+    public static float sd = 15;
+    static float hitWindow = 0.4f;
     static bool doNotePushback = false;
 
-    public static Color[] colorList = { Color.Pink, Color.SkyBlue };
+    public static Color[] colorList = { Color.SkyBlue, Color.Pink };
 
     static bool dead = false;
+    static int health = 5;
 
-    static float songOffset = 799;
+    static float songOffset = 890;
     static string hitPath = Path.Combine("Resources", "hit.wav");
     static string missPath = Path.Combine("Resources", "miss.wav");
-    static string sspmPath = Path.Combine("Resources", "map.sspm");
+    static string cursorPath = Path.Combine("Resources", "cursor.png");
+    static string menuLoopPath = Path.Combine("Resources", "menuLoop.ogg");
 
     static void Main(string[] args)
     {
@@ -41,21 +52,31 @@ internal partial class Program
         Raylib.SetWindowIcon(Raylib.LoadImage(Path.Combine("Resources", "icon.png")));
         Raylib.ToggleBorderlessWindowed();
 
-        LoadMapAndPlay("sspm");
+        Play("sspm", false);
 
         Raylib.CloseAudioDevice();
         Raylib.CloseWindow();
     }
 
-    static void LoadMapAndPlay(string mapFileType)
+    static int misses = 0;
+    static int hits = 0;
+    static int noteCount = 0;
+
+    static void Play(string mapFileType, bool localFile)
     {
+        misses = 0;
+        hits = 0;
+
         Sound hit = Raylib.LoadSound(hitPath);
         Sound miss = Raylib.LoadSound(missPath);
+        Texture2D cursorTexture = Raylib.LoadTexture(cursorPath);
 
         List<Note> unspawnedNotes = new List<Note>();
         List<Note> renderedNotes = new List<Note>();
 
         Stopwatch timer = new Stopwatch();
+        Stopwatch pauseTimer = new Stopwatch();
+        float skippedMilliseconds = 0;
         bool playSong = true;
 
         float grid_size = screenHeight * 0.7f;
@@ -64,86 +85,276 @@ internal partial class Program
 
         string mapPath = Path.Combine("Resources", "map.txt");
         string songPath = Path.Combine("Resources", "song.mp3");
-        string sspmPath;
+        string sspmPath = Path.Combine("Resources", "map.sspm");
         Sound song = Raylib.LoadSound(songPath);
         IBeatmapSet map;
-        if (mapFileType == "txt")
+        if (localFile)
         {
-            mapPath = Path.Combine("Resources", "map.txt"); // you should get to pick
-            songPath = Path.Combine("Resources", "song.mp3"); // you should get to pick
-            song = Raylib.LoadSound(songPath);
-            unspawnedNotes = MapReader.txt(mapPath);
-        } else if (mapFileType == "sspm")
+            if (mapFileType == "txt")
+            {
+                mapPath = Path.Combine("Resources", "map.txt"); // you should get to pick
+                songPath = Path.Combine("Resources", "song.mp3"); // you should get to pick
+                song = Raylib.LoadSound(songPath);
+                unspawnedNotes = MapReader.txt(mapPath);
+                noteCount = unspawnedNotes.Count;
+            }
+            else if (mapFileType == "sspm")
+            {
+                map = new SSPMap(sspmPath);
+                unspawnedNotes = MapReader.sspm(sspmPath);
+                noteCount = unspawnedNotes.Count;
+                byte[] audioData = new SSPMap(sspmPath).AudioData;
+                song = Raylib.LoadSoundFromWave(Raylib.LoadWaveFromMemory(MapReader.GetFileFormat(audioData), audioData));
+            }
+            else { Console.WriteLine("mapFileType not recognized"); }
+        } else
         {
-            sspmPath = @"C:\Users\Rapid\Downloads\map.sspm";
-            map = new SSPMap(sspmPath);
-            unspawnedNotes = MapReader.sspm(sspmPath);
-            byte[] audioData = new SSPMap(sspmPath).AudioData;
-            song = Raylib.LoadSoundFromWave(Raylib.LoadWaveFromMemory(MapReader.GetFileFormat(audioData), audioData));
-            songOffset += 122;
+            Sound menuLoop = Raylib.LoadSound(menuLoopPath);
+            Texture2D logo = Raylib.LoadTexture(Path.Combine("Resources", "logo.png"));
+            float logoAspectRatio = (float)logo.Width / logo.Height;
+            float logoWidth, logoHeight;
+            if (screenWidth / screenHeight > logoAspectRatio)
+            {
+                logoHeight = screenHeight * 0.2f;
+                logoWidth = logoHeight * logoAspectRatio;
+            }
+            else
+            {
+                logoWidth = screenWidth * 0.4f;
+                logoHeight = logoWidth / logoAspectRatio;
+            }
+            float logoX = (screenWidth - logoWidth) / 2;
+            float logoY = (screenHeight - logoHeight) / 2 - (int)(screenHeight*0.2);
+            while (unspawnedNotes.Count == 0 && !Raylib.WindowShouldClose())
+            {
+                Raylib.BeginDrawing();
+                Raylib.ClearBackground(Color.Black);
+
+                if (!Raylib.IsSoundPlaying(menuLoop))
+                {
+                    Raylib.PlaySound(menuLoop);
+                }
+
+                Raylib.DrawTexturePro(
+                    logo,
+                    new Rectangle(0, 0, logo.Width, logo.Height),
+                    new Rectangle(logoX, logoY, logoWidth, logoHeight),
+                    Vector2.Zero,
+                    0.0f,
+                    Color.White
+                );
+
+                DragAndDropHandler.CheckForFileDrop((newNotes, newNoteCount, newSong, newSspmPath) =>
+                {
+                    Raylib.UnloadSound(song);
+                    Raylib.UnloadSound(hit);
+                    Raylib.UnloadSound(miss);
+                    unspawnedNotes = newNotes;
+                    noteCount = newNoteCount;
+                    song = newSong;
+                    sspmPath = newSspmPath;
+                    skippedMilliseconds = 0;
+                    pauseTimer.Restart();
+                });
+
+                Raylib.EndDrawing();
+            }
+            Raylib.UnloadSound(menuLoop);
+            Raylib.UnloadTexture(logo);
         }
-
+        Raylib.SetMousePosition(screenWidth / 2, screenHeight / 2);
+        Raylib.DisableCursor();
         timer.Start();
-
-        while (!Raylib.WindowShouldClose())
+        pauseTimer.Start();
+        bool paused = false; 
+        while (!Raylib.WindowShouldClose() && !(renderedNotes.Count==0&&unspawnedNotes.Count==0))
         {
-            if (playSong && timer.Elapsed.TotalMilliseconds > songOffset)
+            DragAndDropHandler.CheckForFileDrop((newNotes, newNoteCount, newSong, newSspmPath) =>
+            {
+                Raylib.UnloadSound(song);
+                Raylib.UnloadSound(hit);
+                Raylib.UnloadSound(miss);
+                unspawnedNotes = newNotes;
+                noteCount = newNoteCount;
+                song = newSong;
+                sspmPath = newSspmPath;
+                timer.Restart();
+                playSong = true;
+                skippedMilliseconds = 0;
+                renderedNotes.Clear();
+                pauseTimer.Restart();
+            });
+
+            if (dead)
+            {
+                break;
+            }
+
+            if (playSong && (timer.Elapsed.TotalMilliseconds + skippedMilliseconds) > songOffset)
             {
                 Console.WriteLine("played song");
                 Raylib.PlaySound(song);
+                pauseTimer.Reset();
                 playSong = false;
             }
 
-            while (unspawnedNotes.Count > 0 && unspawnedNotes[0].Time < timer.Elapsed.TotalMilliseconds + sd)
+            while (unspawnedNotes.Count > 0 && unspawnedNotes[0].Time < (timer.Elapsed.TotalMilliseconds + skippedMilliseconds) + sd)
             {
                 renderedNotes.Add(unspawnedNotes[0]);
                 unspawnedNotes.RemoveAt(0);
             }
-
+            
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.Black);
-            Raylib.DrawRectangleLinesEx(new Rectangle(screenWidth / 2 - grid_size / 2, screenHeight / 2 - grid_size / 2, grid_size, grid_size), 2, Color.White);
-            Raylib.DrawText("FPS: " + Raylib.GetFPS(), 0, 0, 100, Color.White);
-            if (renderedNotes.Count > 0)
-                Raylib.DrawText(renderedNotes[0].X.ToString(), 0, 100, 50, Color.White);
 
-            for (int i = renderedNotes.Count - 1; i > -1; i--)
+            Rectangle borderRect = new Rectangle(screenWidth / 2 - grid_size / 2, screenHeight / 2 - grid_size / 2, grid_size, grid_size);
+            bool borderDrawn = false;
+            int i = renderedNotes.Count - 1;
+
+            Vector2 mousePosition = Misc.Constraint(Raylib.GetMousePosition() * sens, borderRect);
+            Rectangle mouseRect = new Rectangle(
+                mousePosition.X - cursorTexture.Width * 0.5f / 2,
+                mousePosition.Y - cursorTexture.Height * 0.5f / 2,
+                cursorTexture.Width * 0.5f,
+                cursorTexture.Height * 0.5f
+            );
+
+            while (i > -1)
             {
-                float noteZ = (renderedNotes[i].Time - (float)timer.Elapsed.TotalMilliseconds) * ar;
-                if (noteZ <= 1f - hitWindow)
-                {
-                    Raylib.PlaySound(miss);
-                    renderedNotes.RemoveAt(i);
-                    i--;
-                    continue;
-                }
-
+                float noteZ = (renderedNotes[i].Time - (float)timer.Elapsed.TotalMilliseconds + skippedMilliseconds) * ar;
                 float scale = grid_size / 3.0f / noteZ;
                 float thickness = noteThickness / noteZ;
                 float adjustedSize = scale - 2 * thickness;
+                Rectangle noteRect = new Rectangle(screenWidth / 2 + scale / 2 - renderedNotes[i].X * scale + thickness,
+                    screenHeight / 2 + scale / 2 - renderedNotes[i].Y * scale + thickness,
+                    adjustedSize,
+                    adjustedSize
+                );
 
+                if (noteZ <= 1f - hitWindow)
+                {
+                    misses++;
+                    Console.WriteLine("miss");
+                    Raylib.PlaySound(miss);
+                    renderedNotes.RemoveAt(i);
+                    i--;
+                    if (health > 1)
+                    {
+                        health--;
+                    } else if (health <= 1)
+                    {
+                        dead = true;
+                    }
+                    continue;
+                } else if (noteZ <= 1 && Raylib.CheckCollisionRecs(mouseRect, noteRect))
+                {
+                    hits++;
+                    Console.WriteLine("hit");
+                    Raylib.PlaySound(hit);
+                    renderedNotes.RemoveAt(i);
+                    i--;
+                    if (health >= 5)
+                    {
+                        health = 5;
+                    }
+                    else if ( health < 5)
+                    {
+                        health++;
+                    }
+                    continue;
+                }
+
+                if (i == 0 && noteZ < 1f && !borderDrawn)
+                {
+                    Raylib.DrawRectangleLinesEx(borderRect, 2, Color.White);
+                    borderDrawn = true;
+                }
                 if (noteZ > 1f || doNotePushback)
                 {
                     Raylib.DrawRectangleRoundedLines(
-                        new Rectangle(
-                            screenWidth / 2 + scale / 2 - renderedNotes[i].X * scale + thickness,
-                            screenHeight / 2 + scale / 2 - renderedNotes[i].Y * scale + thickness,
-                            adjustedSize,
-                            adjustedSize
-                        ),
+                        noteRect,
                         noteRoundness,
                         segments,
                         thickness,
                         renderedNotes[i].Color
                     );
                 }
+                i--;
+            }
+            if (renderedNotes.Count == 0 || !borderDrawn)
+            {
+                Raylib.DrawRectangleLinesEx(borderRect, 2, Color.White);
+            }
+
+            Raylib.DrawText("FPS: " + Raylib.GetFPS(), 0, 0, fontSize, Color.White);
+
+            if (renderedNotes.Count == 0 && unspawnedNotes.Count != 0 && unspawnedNotes[0].Time > (timer.Elapsed.TotalMilliseconds + skippedMilliseconds) + sd + 4000)
+            {
+                Raylib.DrawText("Press SPACE to skip", screenWidth / 2 - (int)grid_size / 2, screenHeight / 2 - (int)grid_size / 2-fontSize, fontSize, Color.White);
+                if (Raylib.IsKeyPressed(KeyboardKey.Space))
+                {
+                    // SKIP IS NOT IMPLEMENTED YET
+                    
+                }
+            }
+            if (Raylib.IsKeyPressed(KeyboardKey.Space) && !paused && pauseTimer.Elapsed.Seconds > 1)
+            {
+                Raylib.PauseSound(song);
+                timer.Stop();
+                pauseTimer.Reset();
+                paused = true;
+            }
+            else if (Raylib.IsKeyPressed(KeyboardKey.Space) && paused)
+            {
+                Raylib.ResumeSound(song);
+                timer.Start();
+                pauseTimer.Start();
+                paused = false;
+            }
+
+            Raylib.DrawTextureEx(cursorTexture, new Vector2(mousePosition.X - cursorTexture.Width*cursorSize / 2, mousePosition.Y - cursorTexture.Height*cursorSize / 2), 0, cursorSize, Color.White);
+
+            if (Raylib.IsKeyDown(KeyboardKey.One))
+            {
+                Raylib.DrawText("debug view", 0, 500, 100, Color.Red);
+                Raylib.DrawText("health: " + health, 0, 600, 50, Color.Red);
+                Raylib.DrawRectangle((int)mouseRect.X, (int)mouseRect.Y, (int)mouseRect.Width, (int)mouseRect.Height, Color.Red);
             }
 
             Raylib.EndDrawing();
         }
+        timer.Stop();
+        IBeatmapSet watMap = new SSPMap(sspmPath);
+        Raylib.EnableCursor();
+        if (dead)
+        {
+            Raylib.UnloadSound(song);
+            while (!Raylib.WindowShouldClose())
+            {
+                Raylib.BeginDrawing();
+                Raylib.ClearBackground(Color.Black);
 
-        Raylib.UnloadSound(song);
-        Raylib.UnloadSound(hit);
-        Raylib.UnloadSound(miss);
+                Raylib.DrawText((int)Math.Round(watMap.Difficulties[0].Notes[watMap.Difficulties[0].Notes.Length - 1].Time) + " seconds - " + watMap.Difficulties[0].Notes.Length + " notes", 0, 0, 50, Color.White);
+                Raylib.DrawText(watMap.Artist + " - " + watMap.Title, 0, 0 + 60, 100, Color.White);
+                Raylib.DrawText("Mappers: " + string.Join(", ", watMap.Mappers), 0, 100 + 60, 50, Color.White);
+
+                Raylib.DrawText($"Misses: {misses}\n\n\n\nAccuracy: {(short)hits / (hits + misses)}%", 0, 180 + 50, 50, Color.White);
+
+                Raylib.EndDrawing();
+            }
+        }
+        while (!Raylib.WindowShouldClose())
+        {
+            Raylib.BeginDrawing();
+            Raylib.ClearBackground(Color.Black);
+
+            Raylib.DrawText((int)Math.Round(watMap.Difficulties[0].Notes[watMap.Difficulties[0].Notes.Length - 1].Time) + " seconds - " + watMap.Difficulties[0].Notes.Length + " notes", 0, 0, 50, Color.White);
+            Raylib.DrawText(watMap.Artist + " - " + watMap.Title, 0, 0+60, 100, Color.White);
+            Raylib.DrawText("Mappers: " + string.Join(", ", watMap.Mappers), 0, 100 + 60, 50, Color.White);
+
+            Raylib.DrawText($"Misses: {misses}\n\n\n\nAccuracy: {(short)hits/(hits+misses)}%", 0, 180 + 60, 50, Color.White);
+
+            Raylib.EndDrawing();
+        }
     }
 }

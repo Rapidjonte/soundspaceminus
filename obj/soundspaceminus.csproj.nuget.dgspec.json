@@ -46,6 +46,10 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "ImGui.NET": {
+              "target": "Package",
+              "version": "[1.90.9.1, )"
+            },
             "Raylib-cs": {
               "target": "Package",
               "version": "[6.1.1, )"
