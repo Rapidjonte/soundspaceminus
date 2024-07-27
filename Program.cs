@@ -20,6 +20,7 @@ internal partial class Program
 
     static float sens = 1;
     static float cursorSize = 0.2f;
+    static float cursorHitboxSize = 0.6f;
 
     static int fontSize = 50;
 
@@ -28,10 +29,10 @@ internal partial class Program
     static float noteThickness = 40;
     public static float noteOffset = 999;
 
-    public static float ar = 15;   
+    public static float ar = 15;
     public static float sd = 15;
-    static float hitWindow = 0.4f;
-    static bool doNotePushback = false;
+    static float hitWindow = 0.5f;
+    static bool doNotePushback = true;
 
     public static Color[] colorList = { Color.SkyBlue, Color.Pink };
 
@@ -43,6 +44,12 @@ internal partial class Program
     static string missPath = Path.Combine("Resources", "miss.wav");
     static string cursorPath = Path.Combine("Resources", "cursor.png");
     static string menuLoopPath = Path.Combine("Resources", "menuLoop.ogg");
+
+    static int misses = 0;
+    static int hits = 0;
+    static int noteCount = 0;
+    static float skippedMilliseconds = 0;
+    static bool playSong = true;
 
     static void Main(string[] args)
     {
@@ -58,14 +65,14 @@ internal partial class Program
         Raylib.CloseWindow();
     }
 
-    static int misses = 0;
-    static int hits = 0;
-    static int noteCount = 0;
-
     static void Play(string mapFileType, bool localFile)
     {
         misses = 0;
         hits = 0;
+        dead = false;
+        health = 5;
+        skippedMilliseconds = 0;
+        playSong = true;
 
         Sound hit = Raylib.LoadSound(hitPath);
         Sound miss = Raylib.LoadSound(missPath);
@@ -76,18 +83,17 @@ internal partial class Program
 
         Stopwatch timer = new Stopwatch();
         Stopwatch pauseTimer = new Stopwatch();
-        float skippedMilliseconds = 0;
-        bool playSong = true;
 
         float grid_size = screenHeight * 0.7f;
         ar /= 1000;
         sd *= 35;
+        // pls adjust variables to resolution
 
         string mapPath = Path.Combine("Resources", "map.txt");
         string songPath = Path.Combine("Resources", "song.mp3");
         string sspmPath = Path.Combine("Resources", "map.sspm");
         Sound song = Raylib.LoadSound(songPath);
-        IBeatmapSet map;
+        IBeatmapSet map = new SSPMap(sspmPath);
         if (localFile)
         {
             if (mapFileType == "txt")
@@ -100,6 +106,7 @@ internal partial class Program
             }
             else if (mapFileType == "sspm")
             {
+                sspmPath = Path.Combine("Resources", "map.sspm"); // you should get to pick
                 map = new SSPMap(sspmPath);
                 unspawnedNotes = MapReader.sspm(sspmPath);
                 noteCount = unspawnedNotes.Count;
@@ -166,6 +173,7 @@ internal partial class Program
                 return;
             }
         }
+
         Raylib.SetMousePosition(screenWidth / 2, screenHeight / 2);
         Raylib.DisableCursor();
         timer.Start();
@@ -214,10 +222,10 @@ internal partial class Program
 
             Vector2 mousePosition = Misc.Constraint(Raylib.GetMousePosition() * sens, borderRect);
             Rectangle mouseRect = new Rectangle(
-                mousePosition.X - cursorTexture.Width * 0.5f / 2,
-                mousePosition.Y - cursorTexture.Height * 0.5f / 2,
-                cursorTexture.Width * 0.5f,
-                cursorTexture.Height * 0.5f
+                mousePosition.X - cursorTexture.Width * cursorHitboxSize / 2,
+                mousePosition.Y - cursorTexture.Height * cursorHitboxSize / 2,
+                cursorTexture.Width * cursorHitboxSize,
+                cursorTexture.Height * cursorHitboxSize
             );
 
             while (i > -1)
@@ -321,16 +329,20 @@ internal partial class Program
                 Raylib.DrawText("health: " + health, 0, 600, 50, Color.Red);
                 Raylib.DrawText("pauseTimer: " + pauseTimer.ElapsedMilliseconds, 0, 650, 50, Color.Red);
                 Raylib.DrawRectangle((int)mouseRect.X, (int)mouseRect.Y, (int)mouseRect.Width, (int)mouseRect.Height, Color.Red);
+                Raylib.DrawText($"Misses: {misses}\n\n\n\nAccuracy: {(float)(hits / (float)(misses + hits)) * 100}%\n\n\n\nProgress: {timer.ElapsedMilliseconds / (map.Difficulties[0].Notes[map.Difficulties[0].Notes.Length - 1].Time*1000)*100}%", 0, 250, 50, Color.Red);
+                Raylib.DrawText((int)Math.Round(map.Difficulties[0].Notes[map.Difficulties[0].Notes.Length - 1].Time) + " seconds - " + map.Difficulties[0].Notes.Length + " notes", 0, 50, 50, Color.White);
+                Raylib.DrawText(map.Artist + " - " + map.Title, 0, 100, 50, Color.White);
+                Raylib.DrawText("Mappers: " + string.Join(", ", map.Mappers), 0, 150, 50, Color.White);
             }
-
             Raylib.EndDrawing();
         }
         timer.Stop();
-        IBeatmapSet watMap = new SSPMap(sspmPath);
         Raylib.EnableCursor();
-        if (dead)
+        if (dead && mapFileType == "sspm")
         {
+            IBeatmapSet watMap = new SSPMap(sspmPath);
             Raylib.UnloadSound(song);
+            Console.WriteLine($"hits: {hits}\nmisses: {misses}\nseconds: {watMap.Difficulties[0].Notes[watMap.Difficulties[0].Notes.Length - 1].Time}\nnoteCount: {noteCount}\nnotesReached: {misses + hits}\naccuracy: {(float)hits / (float)(misses + hits) * 100}%\nProgress: {(short)((float)(hits + misses) / (float)noteCount * 100)}%");
             while (!Raylib.WindowShouldClose())
             {
                 Raylib.BeginDrawing();
@@ -340,23 +352,30 @@ internal partial class Program
                 Raylib.DrawText(watMap.Artist + " - " + watMap.Title, 0, 0 + 60, 100, Color.White);
                 Raylib.DrawText("Mappers: " + string.Join(", ", watMap.Mappers), 0, 100 + 60, 50, Color.White);
 
-                Raylib.DrawText($"Misses: {misses}\n\n\n\nAccuracy: {(short)hits / (hits + misses)}%", 0, 180 + 50, 50, Color.White);
+                
+                Raylib.DrawText($"Misses: {misses}\n\n\n\nAccuracy: {(float)(hits / (float)(misses + hits)) * 100}%\n\n\n\nProgress: {timer.ElapsedMilliseconds / (map.Difficulties[0].Notes[map.Difficulties[0].Notes.Length - 1].Time * 1000) * 100}%", 0, 180 + 60+60, 50, Color.White);
+                Raylib.DrawText("YOU FAILED", 0, 600, 100, Color.White);
 
                 Raylib.EndDrawing();
             }
         }
-        while (!Raylib.WindowShouldClose())
+        else if (!dead && mapFileType == "sspm")
         {
-            Raylib.BeginDrawing();
-            Raylib.ClearBackground(Color.Black);
+            IBeatmapSet watMap = new SSPMap(sspmPath);
+            Console.WriteLine($"hits: {hits}\nmisses: {misses}\nseconds: {watMap.Difficulties[0].Notes[watMap.Difficulties[0].Notes.Length - 1].Time}\nnoteCount: {noteCount}\nnotesReached: {misses + hits}\naccuracy: {(float)hits / (float)(misses + hits) * 100}%\nProgress: {(short)((float)(hits + misses) / (float)noteCount * 100)}%");
+            while (!Raylib.WindowShouldClose())
+            {
+                Raylib.BeginDrawing();
+                Raylib.ClearBackground(Color.Black);
 
-            Raylib.DrawText((int)Math.Round(watMap.Difficulties[0].Notes[watMap.Difficulties[0].Notes.Length - 1].Time) + " seconds - " + watMap.Difficulties[0].Notes.Length + " notes", 0, 0, 50, Color.White);
-            Raylib.DrawText(watMap.Artist + " - " + watMap.Title, 0, 0+60, 100, Color.White);
-            Raylib.DrawText("Mappers: " + string.Join(", ", watMap.Mappers), 0, 100 + 60, 50, Color.White);
+                Raylib.DrawText((int)Math.Round(watMap.Difficulties[0].Notes[watMap.Difficulties[0].Notes.Length - 1].Time) + " seconds - " + watMap.Difficulties[0].Notes.Length + " notes", 0, 0, 50, Color.White);
+                Raylib.DrawText(watMap.Artist + " - " + watMap.Title, 0, 0 + 60, 100, Color.White);
+                Raylib.DrawText("Mappers: " + string.Join(", ", watMap.Mappers), 0, 100 + 60, 50, Color.White);
 
-            Raylib.DrawText($"Misses: {misses}\n\n\n\nAccuracy: {(short)hits/(hits+misses)}%", 0, 180 + 60, 50, Color.White);
-
-            Raylib.EndDrawing();
+                Raylib.DrawText($"Misses: {misses}\n\n\n\nAccuracy: {(short)((float)(hits / (float)(misses + hits)) * 100)}%\n\n\n\nProgress: {(short)((float)(hits + misses) / (float)noteCount * 100)}%", 0, 180 + 60 + 60, 50, Color.White);
+                Raylib.DrawText("YOU PASSED", 0, 600, 100, Color.White);
+                Raylib.EndDrawing();
+            }
         }
     }
 }

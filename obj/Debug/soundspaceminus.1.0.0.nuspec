@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>soundspaceminus</id>
+    <version>1.0.0</version>
+    <authors>soundspaceminus</authors>
+    <description>Package Description</description>
+    <repository type="git" />
+    <dependencies>
+      <group targetFramework="net8.0">
+        <dependency id="ImGui.NET" version="1.90.9.1" exclude="Build,Analyzers" />
+        <dependency id="Raylib-cs" version="6.1.1" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="C:\Users\Rapid\source\repos\soundspaceminus\bin\Debug\net8.0\soundspaceminus.runtimeconfig.json" target="lib\net8.0\soundspaceminus.runtimeconfig.json" />
+    <file src="C:\Users\Rapid\source\repos\soundspaceminus\bin\Debug\net8.0\soundspaceminus.dll" target="lib\net8.0\soundspaceminus.dll" />
+  </files>
+</package>
