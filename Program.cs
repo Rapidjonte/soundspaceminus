@@ -161,6 +161,10 @@ internal partial class Program
             }
             Raylib.UnloadSound(menuLoop);
             Raylib.UnloadTexture(logo);
+            if (Raylib.WindowShouldClose())
+            {
+                return;
+            }
         }
         Raylib.SetMousePosition(screenWidth / 2, screenHeight / 2);
         Raylib.DisableCursor();
@@ -172,17 +176,15 @@ internal partial class Program
             DragAndDropHandler.CheckForFileDrop((newNotes, newNoteCount, newSong, newSspmPath) =>
             {
                 Raylib.UnloadSound(song);
-                Raylib.UnloadSound(hit);
-                Raylib.UnloadSound(miss);
                 unspawnedNotes = newNotes;
                 noteCount = newNoteCount;
                 song = newSong;
                 sspmPath = newSspmPath;
                 timer.Restart();
+                pauseTimer.Restart();
                 playSong = true;
                 skippedMilliseconds = 0;
                 renderedNotes.Clear();
-                pauseTimer.Restart();
             });
 
             if (dead)
@@ -194,7 +196,6 @@ internal partial class Program
             {
                 Console.WriteLine("played song");
                 Raylib.PlaySound(song);
-                pauseTimer.Reset();
                 playSong = false;
             }
 
@@ -296,8 +297,8 @@ internal partial class Program
                     // SKIP IS NOT IMPLEMENTED YET
                     
                 }
-            }
-            if (Raylib.IsKeyPressed(KeyboardKey.Space) && !paused && pauseTimer.Elapsed.Seconds > 1)
+            } 
+            else if (Raylib.IsKeyPressed(KeyboardKey.Space) && !paused && pauseTimer.Elapsed.TotalSeconds > 1)
             {
                 Raylib.PauseSound(song);
                 timer.Stop();
@@ -318,6 +319,7 @@ internal partial class Program
             {
                 Raylib.DrawText("debug view", 0, 500, 100, Color.Red);
                 Raylib.DrawText("health: " + health, 0, 600, 50, Color.Red);
+                Raylib.DrawText("pauseTimer: " + pauseTimer.ElapsedMilliseconds, 0, 650, 50, Color.Red);
                 Raylib.DrawRectangle((int)mouseRect.X, (int)mouseRect.Y, (int)mouseRect.Width, (int)mouseRect.Height, Color.Red);
             }
 
